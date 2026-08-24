@@ -134,6 +134,14 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen bg-[#4a3b2c] overflow-hidden relative font-serif">
+      {/* Loading State */}
+      {isLoading && (
+        <div className="w-full min-h-screen flex flex-col items-center justify-center text-[#d4af37]">
+          <div className="w-12 h-12 border-4 border-[#d4af37]/30 border-t-[#d4af37] rounded-full animate-spin mb-4"></div>
+          <p className="font-serif-display text-lg tracking-widest">Cargando álbum...</p>
+        </div>
+      )}
+
       {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
@@ -149,39 +157,41 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence mode="wait" custom={transitionDirection}>
-        {currentScreen === 'album' ? (
-          <motion.div
-            key="album-screen"
-            custom={transitionDirection}
-            variants={screenVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="w-full min-h-screen"
-          >
-            <AlbumScreen
-              pages={pages}
-              onNavigateToEditor={handleOpenEditor}
-            />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="editor-screen"
-            custom={transitionDirection}
-            variants={screenVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="w-full min-h-screen"
-          >
-            <EditorScreen
-              onCancel={handleCancelEditor}
-              onSave={handleSaveEditor}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!isLoading && (
+        <AnimatePresence mode="wait" custom={transitionDirection}>
+          {currentScreen === 'album' ? (
+            <motion.div
+              key="album-screen"
+              custom={transitionDirection}
+              variants={screenVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="w-full min-h-screen"
+            >
+              <AlbumScreen
+                pages={pages}
+                onNavigateToEditor={handleOpenEditor}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="editor-screen"
+              custom={transitionDirection}
+              variants={screenVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="w-full min-h-screen"
+            >
+              <EditorScreen
+                onCancel={handleCancelEditor}
+                onSave={handleSaveEditor}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   );
 }

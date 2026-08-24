@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Type, 
@@ -11,7 +11,8 @@ import {
   Plus,
   Palette,
   RotateCw,
-  Check
+  Check,
+  GripHorizontal
 } from 'lucide-react';
 import { MemoryPage, ScrapbookItem } from '../types';
 import { PRESET_STICKERS } from '../data/initialMemories';
@@ -44,6 +45,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       rotation: -1.5,
       pinPosition: 'top',
       tapePosition: 'none',
+      x: 60,
+      y: 50,
     },
     {
       id: 'item-florence-2',
@@ -54,13 +57,105 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       rotation: 2.5,
       tapePosition: 'top',
       pinPosition: 'none',
+      x: 160,
+      y: 260,
     },
   ]);
+
+  // Positioning and Dragging State
+  const [textPosition, setTextPosition] = useState({ x: 40, y: 150 });
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const leftPageRef = useRef<HTMLDivElement>(null);
+  const rightPageRef = useRef<HTMLDivElement>(null);
 
   // Active modal/drawer in toolbar
   const [activeToolbarMenu, setActiveToolbarMenu] = useState<'text' | 'image' | 'sticker' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag and Drop Handlers
+  const handleItemPointerDown = (e: React.PointerEvent, id: string, currentX: number, currentY: number) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.tagName.toLowerCase() === 'input' || target.tagName.toLowerCase() === 'textarea') {
+      return;
+    }
+    if (e.pointerType === 'mouse') {
+      e.preventDefault();
+    }
+    setDraggingId(id);
+    setDragOffset({
+      x: e.clientX - currentX,
+      y: e.clientY - currentY
+    });
+    
+    // Bring to front
+    setItems(prev => {
+      const idx = prev.findIndex(item => item.id === id);
+      if (idx === -1) return prev;
+      const newItems = [...prev];
+      const [item] = newItems.splice(idx, 1);
+      newItems.push(item);
+      return newItems;
+    });
+  };
+
+  const handleTextPointerDown = (e: React.PointerEvent, currentX: number, currentY: number) => {
+    e.preventDefault();
+    setDraggingId('narrative-text');
+    setDragOffset({
+      x: e.clientX - currentX,
+      y: e.clientY - currentY
+    });
+  };
+
+  const handlePointerMove = (e: PointerEvent) => {
+    if (!draggingId) return;
+    
+    let newX = e.clientX - dragOffset.x;
+    let newY = e.clientY - dragOffset.y;
+
+    if (draggingId === 'narrative-text') {
+      if (rightPageRef.current) {
+        newX = Math.max(10, Math.min(newX, rightPageRef.current.clientWidth - 200));
+        newY = Math.max(10, Math.min(newY, rightPageRef.current.clientHeight - 150));
+      }
+      setTextPosition({ x: newX, y: newY });
+    } else {
+      if (leftPageRef.current) {
+        newX = Math.max(-100, Math.min(newX, leftPageRef.current.clientWidth - 150));
+        newY = Math.max(-100, Math.min(newY, leftPageRef.current.clientHeight - 150));
+      }
+      setItems(prev => prev.map(item => {
+        if (item.id === draggingId) {
+          return { ...item, x: newX, y: newY };
+        }
+        return item;
+      }));
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (draggingId) {
+      setDraggingId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (draggingId) {
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+    } else {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    }
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [draggingId, dragOffset]);
+
 
   // Add a preset photo/sticker
   const handleAddPreset = (preset: typeof PRESET_STICKERS[0]) => {
@@ -72,6 +167,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       rotation: (Math.random() * 6) - 3,
       tapePosition: 'right',
       pinPosition: 'none',
+      x: 50 + Math.random() * 200,
+      y: 50 + Math.random() * 200,
     };
     setItems((prev) => [...prev, newItem]);
     setActiveToolbarMenu(null);
@@ -92,6 +189,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           rotation: (Math.random() * 6) - 3,
           tapePosition: 'top',
           pinPosition: 'none',
+          x: 100 + Math.random() * 150,
+          y: 100 + Math.random() * 150,
         };
         setItems((prev) => [...prev, newItem]);
         setActiveToolbarMenu(null);
@@ -113,6 +212,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         rotation: (Math.random() * 6) - 3,
         tapePosition: 'top',
         pinPosition: 'none',
+        x: 100 + Math.random() * 150,
+        y: 100 + Math.random() * 150,
       };
       setItems((prev) => [...prev, newItem]);
       setActiveToolbarMenu(null);
@@ -242,7 +343,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           </button>
         </div>
 
-        {/* Right: Cancel & Save Buttons as requested by xpath spec */}
+        {/* Right: Cancel & Save Buttons */}
         <div className="flex items-center gap-3">
           <button
             onClick={onCancel}
@@ -360,147 +461,186 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         </div>
       )}
 
-      {/* Main Reading Paper Journal Sheet */}
-      <main className="flex-grow flex items-center justify-center p-4 sm:p-8 md:p-12">
-        <div className="w-full max-w-[840px] min-h-[640px] bg-[#fcf9f2] shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-[#e5e2db] rounded-sm p-8 sm:p-14 md:p-16 flex flex-col justify-between relative">
+      {/* Main Two-Page Spread */}
+      <main className="flex-grow flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-hidden">
+        <div className="w-full max-w-[1200px] h-[750px] flex shadow-[0_20px_60px_rgba(0,0,0,0.15)] rounded-sm border border-[#e5e2db] relative">
           
-          {/* Top Title Section */}
-          <div className="mb-10">
-            <input
-              type="text"
-              value={pageTitle}
-              onChange={(e) => setPageTitle(e.target.value)}
-              placeholder="Título de la Página..."
-              className="w-full font-serif-display text-3xl sm:text-4xl md:text-5xl font-bold italic text-[#002434] tracking-tight bg-transparent border-b-2 border-[#d4af37]/60 pb-2 focus:outline-none focus:border-[#d4af37]"
-            />
-          </div>
+          {/* Left Page (Items Canvas) */}
+          <div 
+            ref={leftPageRef}
+            className="flex-1 bg-[#fcf9f2] paper-texture paper-grain botanical-corner-tl relative overflow-hidden shadow-[-4px_0_15px_rgba(0,0,0,0.04)_inset]"
+          >
+            {/* Free-form Draggable Items */}
+            {items.map((item) => (
+              <div 
+                key={item.id} 
+                className={`absolute group/card ${draggingId === item.id ? 'scale-105 z-50 shadow-2xl cursor-grabbing' : 'cursor-grab'}`}
+                style={{ 
+                  left: item.x ?? 100, 
+                  top: item.y ?? 100,
+                  transition: draggingId === item.id ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s',
+                  touchAction: 'none'
+                }}
+                onPointerDown={(e) => handleItemPointerDown(e, item.id, item.x ?? 100, item.y ?? 100)}
+              >
+                {/* Floating Action Controls */}
+                <div className="absolute -top-3 -right-2 z-30 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white rounded-full shadow-md border border-stone-200 flex items-center p-1 gap-1">
+                  <button
+                    onClick={() => rotateItem(item.id)}
+                    title="Rotar polaroid"
+                    className="p-1 hover:bg-stone-100 rounded text-stone-600 cursor-pointer"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => togglePinTape(item.id)}
+                    title="Cambiar fijación (chincheta / cinta)"
+                    className="p-1 hover:bg-stone-100 rounded text-stone-600 cursor-pointer"
+                  >
+                    <Palette className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    title="Eliminar elemento"
+                    className="p-1 hover:bg-red-50 text-red-500 rounded cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-          {/* Main Scrapbook Content Area */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start my-auto">
-            {/* Left Column: Stacked Polaroids and Botanical specimens */}
-            <div className="md:col-span-6 flex flex-col gap-6 items-center">
-              {items.map((item) => (
-                <div key={item.id} className="relative group/card">
-                  {/* Floating Action Controls */}
-                  <div className="absolute -top-3 -right-2 z-30 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white rounded-full shadow-md border border-stone-200 flex items-center p-1 gap-1">
-                    <button
-                      onClick={() => rotateItem(item.id)}
-                      title="Rotar polaroid"
-                      className="p-1 hover:bg-stone-100 rounded text-stone-600 cursor-pointer"
-                    >
-                      <RotateCw className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => togglePinTape(item.id)}
-                      title="Cambiar fijación (chincheta / cinta)"
-                      className="p-1 hover:bg-stone-100 rounded text-stone-600 cursor-pointer"
-                    >
-                      <Palette className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      title="Eliminar elemento"
-                      className="p-1 hover:bg-red-50 text-red-500 rounded cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                {/* The Polaroid Card */}
+                <div
+                  className="relative inline-block polaroid bg-white text-stone-800 max-w-[260px]"
+                  style={{ transform: `rotate(${item.rotation || 0}deg)` }}
+                >
+                  {/* Push Pin */}
+                  {item.pinPosition === 'top' && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center">
+                      <div className="w-4 h-4 rounded-full bg-[#1a3a4a] border-2 border-stone-300 shadow-md"></div>
+                    </div>
+                  )}
+
+                  {/* Washi tape */}
+                  {item.tapePosition === 'right' && (
+                    <div className="washi-tape -top-3 -right-3 rotate-12" />
+                  )}
+                  {item.tapePosition === 'left' && (
+                    <div className="washi-tape -top-3 -left-3 -rotate-12" />
+                  )}
+                  {item.tapePosition === 'top' && (
+                    <div className="washi-tape -top-3 left-1/2 -translate-x-1/2 -rotate-2" />
+                  )}
+
+                  {/* Image or Video */}
+                  <div className="relative overflow-hidden bg-[#e8e4dc] border border-stone-200 aspect-[4/3] flex items-center justify-center w-full h-full pointer-events-none">
+                    <div className="absolute inset-0 paper-grain z-10 opacity-30 mix-blend-overlay"></div>
+                    {item.type === 'video' && item.videoUrl ? (
+                      <video
+                        src={item.videoUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover select-none filter sepia-[0.35] contrast-[0.95] brightness-[1.05] saturate-[0.8]"
+                      />
+                    ) : (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.caption || 'Memory Photo'}
+                        className="w-full h-full object-cover select-none filter sepia-[0.35] contrast-[0.95] brightness-[1.05] saturate-[0.8]"
+                        draggable={false}
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
                   </div>
 
-                  {/* The Polaroid Card */}
-                  <div
-                    className="relative inline-block polaroid bg-white text-stone-800 max-w-[260px] cursor-pointer"
-                    style={{ transform: `rotate(${item.rotation || 0}deg)` }}
-                  >
-                    {/* Push Pin */}
-                    {item.pinPosition === 'top' && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center">
-                        <div className="w-4 h-4 rounded-full bg-[#1a3a4a] border-2 border-stone-300 shadow-md"></div>
-                      </div>
-                    )}
-
-                    {/* Washi tape */}
-                    {item.tapePosition === 'right' && (
-                      <div className="washi-tape -top-3 -right-3 rotate-12" />
-                    )}
-                    {item.tapePosition === 'left' && (
-                      <div className="washi-tape -top-3 -left-3 -rotate-12" />
-                    )}
-                    {item.tapePosition === 'top' && (
-                      <div className="washi-tape -top-3 left-1/2 -translate-x-1/2 -rotate-2" />
-                    )}
-
-                    {/* Image or Video */}
-                    <div className="relative overflow-hidden bg-[#e8e4dc] border border-stone-200 aspect-[4/3] flex items-center justify-center w-full h-full">
-                      {/* Grain overlay for vintage photo feel */}
-                      <div className="absolute inset-0 paper-grain pointer-events-none z-10 opacity-30 mix-blend-overlay"></div>
-
-                      {item.type === 'video' && item.videoUrl ? (
-                        <video
-                          src={item.videoUrl}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover select-none filter sepia-[0.35] contrast-[0.95] brightness-[1.05] saturate-[0.8]"
-                        />
-                      ) : (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.caption || 'Memory Photo'}
-                          className="w-full h-full object-cover select-none filter sepia-[0.35] contrast-[0.95] brightness-[1.05] saturate-[0.8]"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                    </div>
-
-                    {/* Editable caption */}
-                    <div className="mt-2 text-center">
-                      <input
-                        type="text"
-                        value={item.caption || ''}
-                        onChange={(e) => updateItemCaption(item.id, e.target.value)}
-                        placeholder="Pie de foto manuscrito..."
-                        className="w-full font-handwriting text-xl text-stone-800 bg-transparent border-b border-transparent hover:border-stone-300 focus:border-stone-600 outline-none text-center"
-                      />
-                    </div>
+                  {/* Editable caption */}
+                  <div className="mt-2 text-center pb-2">
+                    <input
+                      type="text"
+                      value={item.caption || ''}
+                      onChange={(e) => updateItemCaption(item.id, e.target.value)}
+                      placeholder="Pie de foto manuscrito..."
+                      className="w-full font-handwriting text-xl text-stone-800 bg-transparent border-b border-transparent hover:border-stone-300 focus:border-stone-600 outline-none text-center cursor-text"
+                    />
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
 
-              {/* Add item button inside sheet */}
+            {/* Add item button placed discreetly inside left page */}
+            <div className="absolute bottom-6 right-6 z-40">
               <button
                 onClick={() => setActiveToolbarMenu('image')}
-                className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-[#72787c]/60 rounded-full font-sans-ui text-xs text-[#42474b] hover:border-[#002434] hover:text-[#002434] transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 bg-white/70 backdrop-blur-md border border-dashed border-[#72787c]/60 rounded-full font-sans-ui text-xs text-[#42474b] hover:border-[#002434] hover:text-[#002434] hover:bg-white transition-colors cursor-pointer shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Añadir foto o flor prensada</span>
+                <span>Añadir recuerdo</span>
               </button>
             </div>
+          </div>
 
-            {/* Right Column: Narrative Story Box */}
-            <div className="md:col-span-6 flex flex-col justify-center">
-              <div className="relative group">
-                <textarea
-                  rows={6}
-                  value={narrativeText}
-                  onChange={(e) => setNarrativeText(e.target.value)}
-                  placeholder="Escribe la historia de este recuerdo..."
-                  className={`w-full bg-transparent resize-none border border-transparent hover:border-[#c2c7cc] focus:border-[#002434] rounded-lg p-3 outline-none leading-relaxed text-stone-800 text-lg ${
-                    fontFamily === 'serif' ? 'font-serif' : fontFamily === 'handwriting' ? 'font-handwriting text-2xl' : 'font-sans-ui text-base'
-                  }`}
-                />
-                <span className="text-[11px] font-sans-ui text-stone-400 block mt-1">
-                  💡 Haz clic en el texto para editar la narración libremente.
-                </span>
+          {/* Book Spine Shadow / Crease */}
+          <div className="w-[8px] h-full bg-gradient-to-r from-[#e5e2db] via-[#ccc8bf] to-[#e5e2db] z-10 shadow-[inset_3px_0_8px_rgba(0,0,0,0.06),inset_-3px_0_8px_rgba(0,0,0,0.06)] border-x border-[#c2c7cc]/40"></div>
+
+          {/* Right Page (Narrative Canvas) */}
+          <div 
+            ref={rightPageRef}
+            className="flex-1 bg-[#fcf9f2] paper-texture paper-grain botanical-corner-br relative overflow-hidden shadow-[4px_0_15px_rgba(0,0,0,0.04)_inset] p-10"
+          >
+            {/* Title - Static at the top of the right page */}
+            <div className="mb-8 relative z-20">
+              <input
+                type="text"
+                value={pageTitle}
+                onChange={(e) => setPageTitle(e.target.value)}
+                placeholder="Título de la Página..."
+                className="w-full font-serif-display text-3xl sm:text-4xl md:text-5xl font-bold italic text-[#002434] tracking-tight bg-transparent border-b-2 border-[#d4af37]/60 pb-2 focus:outline-none focus:border-[#d4af37]"
+              />
+            </div>
+
+            {/* Draggable Narrative Text Block */}
+            <div 
+              className={`absolute group bg-white/40 backdrop-blur-sm border border-transparent hover:border-[#d1ccc0] rounded-lg p-1 ${draggingId === 'narrative-text' ? 'scale-[1.02] z-50 shadow-xl' : 'shadow-sm hover:shadow-md'}`}
+              style={{ 
+                left: textPosition.x, 
+                top: textPosition.y,
+                width: 'calc(100% - 80px)',
+                transition: draggingId === 'narrative-text' ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s',
+                touchAction: 'none'
+              }}
+            >
+              {/* Drag Handle */}
+              <div 
+                className="h-6 w-full flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+                onPointerDown={(e) => handleTextPointerDown(e, textPosition.x, textPosition.y)}
+              >
+                <div className="w-12 h-1.5 bg-stone-300 rounded-full flex items-center justify-center">
+                  <GripHorizontal className="w-4 h-4 text-stone-500" />
+                </div>
               </div>
+              
+              <textarea
+                rows={10}
+                value={narrativeText}
+                onChange={(e) => setNarrativeText(e.target.value)}
+                placeholder="Escribe la historia de este recuerdo..."
+                className={`w-full bg-transparent resize-none outline-none leading-relaxed text-stone-800 text-lg px-3 pb-3 ${
+                  fontFamily === 'serif' ? 'font-serif' : fontFamily === 'handwriting' ? 'font-handwriting text-2xl' : 'font-sans-ui text-base'
+                }`}
+              />
+              <span className="text-[11px] font-sans-ui text-stone-400 block ml-3 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                💡 Arrastra el tirador superior para mover el texto.
+              </span>
+            </div>
+
+            {/* Footer note on the page */}
+            <div className="absolute bottom-8 left-10 right-10 pt-4 border-t border-[#e5e2db] flex items-center justify-between text-xs text-stone-400 font-sans-ui z-10 pointer-events-none">
+              <span>Editor de Recuerdos Libres • Lumina Scholastica</span>
+              <span>Álbum de Recuerdos</span>
             </div>
           </div>
 
-          {/* Footer note on the page */}
-          <div className="mt-8 pt-4 border-t border-[#e5e2db] flex items-center justify-between text-xs text-stone-400 font-sans-ui">
-            <span>Editor de Recuerdos Libres • Lumina Scholastica</span>
-            <span>Álbum de Recuerdos</span>
-          </div>
         </div>
       </main>
     </div>
