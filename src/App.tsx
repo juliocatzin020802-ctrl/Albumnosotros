@@ -4,6 +4,7 @@ import { ScreenType, MemoryPage, ScrapbookItem } from './types';
 import { INITIAL_PAGES } from './data/initialMemories';
 import { AlbumScreen } from './components/AlbumScreen';
 import { EditorScreen } from './components/EditorScreen';
+import { fetchPages, createPage, savePageWithItems } from './lib/memoriesService';
 
 const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000000';
 type SyncStatus = 'loading' | 'synced' | 'error';
@@ -22,10 +23,9 @@ function toItemInsert(item: ScrapbookItem) {
 
 async function persistEditorPageToSupabase(newPage: MemoryPage | null) {
   if (!newPage) return;
-  const mem = await import('./lib/memoriesService');
   if (newPage.type === 'photo_caption') {
     const items = (newPage.items || []).map(toItemInsert);
-    return mem.savePageWithItems(
+    return savePageWithItems(
       {
         user_id: DEFAULT_USER_ID,
         page_type: 'photo_caption',
@@ -37,7 +37,7 @@ async function persistEditorPageToSupabase(newPage: MemoryPage | null) {
       items,
     );
   }
-  return mem.createPage({
+  return createPage({
     user_id: DEFAULT_USER_ID,
     page_type: 'story',
     title: newPage.title || null,
@@ -58,7 +58,7 @@ export default function App() {
   useEffect(() => {
     async function loadPages() {
       try {
-        const { data, error } = await import('./lib/memoriesService').then(m => m.fetchPages(DEFAULT_USER_ID));
+        const { data, error } = await fetchPages(DEFAULT_USER_ID);
 
         if (error) throw error;
 
