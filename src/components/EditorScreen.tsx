@@ -18,6 +18,36 @@ import {
 import { MemoryPage, ScrapbookItem } from '../types';
 import { PRESET_STICKERS } from '../data/initialMemories';
 
+// Downscale an image so it fits in localStorage / the database comfortably.
+function downscaleImage(file: File, maxDim = 1200, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (err) {
+        reject(err);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+    img.src = objectUrl;
+  });
+}
+
 interface EditorScreenProps {
   onCancel: () => void;
   onSave: (newPage: MemoryPage) => void;
@@ -183,13 +213,13 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     setActiveToolbarMenu(null);
   };
 
-  // Upload user image
+  // Upload user image (downscaled for storage)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const url = uploadEvent.target?.result as string;
+    if (!file) return;
+
+    downscaleImage(file)
+      .then((url) => {
         const newItem: ScrapbookItem = {
           id: `item-${Date.now()}`,
           type: 'photo',
@@ -203,9 +233,10 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         };
         setItems((prev) => [...prev, newItem]);
         setActiveToolbarMenu(null);
-      };
-      reader.readAsDataURL(file);
-    }
+      })
+      .catch((err) => {
+        console.error('No se pudo procesar la imagen:', err);
+      });
   };
 
   // Upload user video

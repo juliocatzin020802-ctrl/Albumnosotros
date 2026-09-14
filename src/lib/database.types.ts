@@ -25,6 +25,8 @@ export interface Database {
           title: string | null;
           narrative: string | null;
           font_family: string | null;
+          page_type: string;
+          spotify_url: string | null;
           created_at: string;
         };
         Insert: {
@@ -33,6 +35,8 @@ export interface Database {
           title?: string | null;
           narrative?: string | null;
           font_family?: string | null;
+          page_type?: string;
+          spotify_url?: string | null;
           created_at?: string;
         };
         Update: {
@@ -41,6 +45,8 @@ export interface Database {
           title?: string | null;
           narrative?: string | null;
           font_family?: string | null;
+          page_type?: string;
+          spotify_url?: string | null;
           created_at?: string;
         };
         Relationships: [
