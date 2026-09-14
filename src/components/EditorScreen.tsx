@@ -778,7 +778,6 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
 
             {/* Footer note on the page */}
             <div className="absolute bottom-8 left-10 right-10 pt-4 border-t border-[#e5e2db] flex items-center justify-between text-xs text-stone-400 font-sans-ui z-10 pointer-events-none">
-              <span>Editor de Recuerdos Libres • Lumina Scholastica</span>
               <span>Álbum de Recuerdos</span>
             </div>
           </div>

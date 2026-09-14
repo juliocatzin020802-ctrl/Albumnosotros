@@ -301,6 +301,9 @@ function renderPageContent(
   if (page.type === 'add_chapter') {
     return renderAddChapter(page, side, onNavigateToEditor);
   }
+  if (page.type === 'photo_caption') {
+    return renderPhotoCaptionPage(page, side);
+  }
   return renderStoryPage(page, side);
 }
 
@@ -433,6 +436,24 @@ function renderAddChapter(page: MemoryPage, side: 'left' | 'right', onNavigateTo
         <Plus className="w-4 h-4 text-[#ffe088] group-hover:rotate-90 transition-transform duration-300" />
         <span>Añadir Recuerdos</span>
       </button>
+    </div>
+  );
+}
+
+function renderPhotoCaptionPage(page: MemoryPage, side: 'left' | 'right') {
+  const shadowClass = side === 'left' ? 'page-shadow-left' : 'page-shadow-right';
+  const roundedClass = side === 'left' ? 'rounded-l-lg' : 'rounded-r-lg';
+  return (
+    <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl relative overflow-hidden ${shadowClass} ${roundedClass}`}>
+      {(page.items || []).map((item) => (
+        <div
+          key={item.id}
+          className="absolute"
+          style={{ left: item.x ?? 60, top: item.y ?? 60 }}
+        >
+          <PolaroidCard item={item} className="max-w-[230px]" />
+        </div>
+      ))}
     </div>
   );
 }

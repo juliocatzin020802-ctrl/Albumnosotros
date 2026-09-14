@@ -9,9 +9,14 @@ export const INITIAL_PAGES: MemoryPage[] = [
     subtitle: 'Julio y Linda.',
     dateRange: '2023 – Hasta la tumba',
   },
-  // Page 2: Inside Cover (Dedication)
+  // Page 2: Blank page right after the cover
   {
-    id: 'inside-cover',
+    id: 'inside-cover-blank',
+    type: 'inside_blank',
+  },
+  // Page 3: Dedication page
+  {
+    id: 'inside-cover-dedication',
     type: 'inside_blank',
     title: 'Guardemos nuestra historia para siempre.',
     narrative:
@@ -23,13 +28,13 @@ export const INITIAL_PAGES: MemoryPage[] = [
       'no tengo las habilidades al 100, traté de dejarlo lo mejor posible. Te amo.\n\n' +
       'Julio.',
   },
-  // Page 3: Add chapter / new memories
+  // Page 4: Add chapter / new memories
   {
     id: 'page-7',
     type: 'add_chapter',
     handwrittenNote: 'Guardemos un recuerdo más <3',
   },
-  // Page 4: Back Cover
+  // Page 5: Back Cover
   {
     id: 'page-8',
     type: 'back_cover',

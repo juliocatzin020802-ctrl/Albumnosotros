@@ -46,13 +46,14 @@ export default function App() {
             }))
           }));
 
-          // Insert fetched pages between inside cover and add chapter
+          // Insert fetched pages between dedication and add chapter
           setPages([
             INITIAL_PAGES[0], // Cover
             INITIAL_PAGES[1], // Inside blank
+            INITIAL_PAGES[2], // Dedication
             ...dbPages,
-            INITIAL_PAGES[2], // Add chapter
-            INITIAL_PAGES[3], // Back cover
+            INITIAL_PAGES[3], // Add chapter
+            INITIAL_PAGES[4], // Back cover
           ]);
         }
       } catch (err) {
@@ -82,17 +83,36 @@ export default function App() {
   };
 
   const handleSaveEditor = (newPage: MemoryPage) => {
-    // Insert new page before the last 2 pages (Add Chapter & Back Cover)
+    // Split the editor page into two album leaves, keeping the editor format:
+    // left = image collage, right = title + narrative + spotify track
     setPages((prevPages) => {
       const insertIndex = Math.max(0, prevPages.length - 2);
       const updated = [...prevPages];
-      updated.splice(insertIndex, 0, newPage);
+
+      if (newPage.items && newPage.items.length > 0) {
+        updated.splice(insertIndex, 0, {
+          ...newPage,
+          id: `${newPage.id}-collage`,
+          type: 'photo_caption',
+          title: undefined,
+          narrative: undefined,
+          spotifyEmbedUrl: undefined,
+        });
+      }
+
+      updated.splice(insertIndex + (newPage.items && newPage.items.length > 0 ? 1 : 0), 0, {
+        ...newPage,
+        id: `${newPage.id}-text`,
+        type: 'story',
+        items: [],
+      });
+
       return updated;
     });
 
     setTransitionDirection('push_back');
     setCurrentScreen('album');
-    showToast('¡Página guardada con éxito en el álbum!');
+    showToast('¡Páginas guardadas con éxito en el álbum!');
   };
 
   // Motion variants for slide_up & push_back
