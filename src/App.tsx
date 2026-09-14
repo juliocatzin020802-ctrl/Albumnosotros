@@ -5,21 +5,8 @@ import { INITIAL_PAGES } from './data/initialMemories';
 import { AlbumScreen } from './components/AlbumScreen';
 import { EditorScreen } from './components/EditorScreen';
 
-const STORAGE_KEY = 'album-de-recuerdos:pages';
 const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-function loadSavedPages(): MemoryPage[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as MemoryPage[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (err) {
-    console.warn('[Album] No se pudieron restaurar las páginas guardadas:', err);
-  }
-  return INITIAL_PAGES;
-}
+type SyncStatus = 'loading' | 'synced' | 'error';
 
 function toItemInsert(item: ScrapbookItem) {
   return {
@@ -33,63 +20,49 @@ function toItemInsert(item: ScrapbookItem) {
   };
 }
 
-// Persist an editor page (collage or text) to Supabase so it's shared across devices
 async function persistEditorPageToSupabase(newPage: MemoryPage | null) {
   if (!newPage) return;
   const mem = await import('./lib/memoriesService');
-  try {
-    if (newPage.type === 'photo_caption') {
-      // Collage page: images + their positions
-      const items = (newPage.items || []).map(toItemInsert);
-      const { error } = await mem.savePageWithItems(
-        {
-          user_id: DEFAULT_USER_ID,
-          page_type: 'photo_caption',
-          title: null,
-          narrative: null,
-          font_family: newPage.fontFamily || 'serif',
-          spotify_url: null,
-        },
-        items,
-      );
-      if (error) throw error;
-    } else {
-      // Story/text page: title + narrative + spotify track
-      const { error } = await mem.createPage({
+  if (newPage.type === 'photo_caption') {
+    const items = (newPage.items || []).map(toItemInsert);
+    return mem.savePageWithItems(
+      {
         user_id: DEFAULT_USER_ID,
-        page_type: 'story',
-        title: newPage.title || null,
-        narrative: newPage.narrative || null,
+        page_type: 'photo_caption',
+        title: null,
+        narrative: null,
         font_family: newPage.fontFamily || 'serif',
-        spotify_url: newPage.spotifyEmbedUrl || null,
-      });
-      if (error) throw error;
-    }
-  } catch (err) {
-    console.error('[Album] No se pudo sincronizar con Supabase:', err);
+        spotify_url: null,
+      },
+      items,
+    );
   }
+  return mem.createPage({
+    user_id: DEFAULT_USER_ID,
+    page_type: 'story',
+    title: newPage.title || null,
+    narrative: newPage.narrative || null,
+    font_family: newPage.fontFamily || 'serif',
+    spotify_url: newPage.spotifyEmbedUrl || null,
+  });
 }
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('album');
   const [transitionDirection, setTransitionDirection] = useState<'slide_up' | 'push_back'>('slide_up');
-  const [pages, setPages] = useState<MemoryPage[]>(() => loadSavedPages());
+  const [pages, setPages] = useState<MemoryPage[]>(INITIAL_PAGES);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
 
-  // Load pages from Supabase (source of truth). localStorage is the offline fallback.
   useEffect(() => {
     async function loadPages() {
       try {
         const { data, error } = await import('./lib/memoriesService').then(m => m.fetchPages(DEFAULT_USER_ID));
 
-        if (error) {
-          console.warn('[Album] Supabase no disponible, usando guardado local:', error);
-          return;
-        }
+        if (error) throw error;
 
         if (data && data.length > 0) {
-          // Map DB pages to MemoryPage format
           const dbPages: MemoryPage[] = data.map((p) => ({
             id: p.id,
             type: p.page_type === 'photo_caption' ? 'photo_caption' : 'story',
@@ -97,7 +70,7 @@ export default function App() {
             narrative: p.narrative || undefined,
             fontFamily: (p.font_family as any) || 'serif',
             spotifyEmbedUrl: p.spotify_url || undefined,
-            items: p.scrapbook_items.map(item => ({
+            items: (p.scrapbook_items || []).map(item => ({
               id: item.id,
               type: item.type as any,
               imageUrl: item.url || undefined,
@@ -110,21 +83,21 @@ export default function App() {
             }))
           }));
 
-          // Insert fetched pages between dedication and add chapter
           setPages([
-            INITIAL_PAGES[0], // Cover
-            INITIAL_PAGES[1], // Inside blank
-            INITIAL_PAGES[2], // Dedication
+            INITIAL_PAGES[0],
+            INITIAL_PAGES[1],
+            INITIAL_PAGES[2],
             ...dbPages,
-            INITIAL_PAGES[3], // Add chapter
-            INITIAL_PAGES[4], // Back cover
+            INITIAL_PAGES[3],
+            INITIAL_PAGES[4],
           ]);
+          setSyncStatus('synced');
         } else {
-          // Supabase is empty: keep the local album if it has one
-          console.info('[Album] Supabase sin páginas; manteniendo guardado local.');
+          setSyncStatus('synced');
         }
       } catch (err) {
-        console.warn('[Album] Supabase no disponible, usando guardado local:', err);
+        console.error('[Album] Error al conectar con Supabase:', err);
+        setSyncStatus('error');
       } finally {
         setIsLoading(false);
       }
@@ -132,15 +105,6 @@ export default function App() {
 
     loadPages();
   }, []);
-
-  // Persist pages locally so saved memories survive page reloads
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
-    } catch (err) {
-      console.warn('[Album] No se pudo guardar localmente (¿almacenamiento lleno?):', err);
-    }
-  }, [pages]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -158,9 +122,7 @@ export default function App() {
     setCurrentScreen('album');
   };
 
-  const handleSaveEditor = (newPage: MemoryPage) => {
-    // Split the editor page into two album leaves, keeping the editor format:
-    // left = image collage, right = title + narrative + spotify track
+  const handleSaveEditor = async (newPage: MemoryPage) => {
     const hasItems = newPage.items && newPage.items.length > 0;
 
     const collagePage: MemoryPage | null = hasItems
@@ -193,13 +155,21 @@ export default function App() {
       return updated;
     });
 
-    // Sync with Supabase so the pages are visible on any device
-    void persistEditorPageToSupabase(collagePage);
-    void persistEditorPageToSupabase(textPage);
-
     setTransitionDirection('push_back');
     setCurrentScreen('album');
-    showToast('¡Guardado! Ahora se verá en cualquier dispositivo.');
+
+    try {
+      const [r1, r2] = await Promise.all([
+        persistEditorPageToSupabase(collagePage),
+        persistEditorPageToSupabase(textPage),
+      ]);
+      const err = r1?.error || r2?.error;
+      if (err) throw err;
+      showToast('¡Guardado y sincronizado!');
+    } catch (err) {
+      console.error('[Album] Sync error:', err);
+      showToast('Guardado localmente. Error al sincronizar.');
+    }
   };
 
   // Motion variants for slide_up & push_back
@@ -293,11 +263,18 @@ export default function App() {
             >
               <EditorScreen
                 onCancel={handleCancelEditor}
-                onSave={handleSaveEditor}
+                onSave={(newPage) => void handleSaveEditor(newPage)}
               />
             </motion.div>
           )}
         </AnimatePresence>
+      )}
+
+      {/* Sync status indicator */}
+      {!isLoading && syncStatus === 'error' && (
+        <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 text-[#fcf9f2] px-4 py-1.5 rounded-full text-xs font-sans-ui shadow-xl">
+          Sin conexión con la nube. Se muestran páginas locales.
+        </div>
       )}
     </div>
   );
