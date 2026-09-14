@@ -55,51 +55,58 @@ function downscaleImage(file: File, maxDim = 1200, quality = 0.82): Promise<Blob
 interface EditorScreenProps {
   onCancel: () => void;
   onSave: (newPage: MemoryPage) => void;
+  initialPage?: MemoryPage | null;
 }
 
 export const EditorScreen: React.FC<EditorScreenProps> = ({
   onCancel,
   onSave,
+  initialPage,
 }) => {
   // Page state
-  const [pageTitle, setPageTitle] = useState('Summer in Florence');
+  const [pageTitle, setPageTitle] = useState(initialPage?.title ?? 'Summer in Florence');
   const [narrativeText, setNarrativeText] = useState(
-    'The cobblestone streets felt warm beneath our feet, a lingering heat from the afternoon sun. We walked for hours, collecting small treasures—a pressed leaf here, a sketch there.'
+    initialPage?.narrative ??
+      'The cobblestone streets felt warm beneath our feet, a lingering heat from the afternoon sun. We walked for hours, collecting small treasures—a pressed leaf here, a sketch there.'
   );
   const [isBookmarked, setIsBookmarked] = useState(true);
-  const [fontFamily, setFontFamily] = useState<'serif' | 'handwriting' | 'sans'>('serif');
+  const [fontFamily, setFontFamily] = useState<'serif' | 'handwriting' | 'sans'>(initialPage?.fontFamily ?? 'serif');
 
   // Spotify track embedded at the bottom of the narrative page
-  const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState<string | null>(null);
+  const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState<string | null>(initialPage?.spotifyEmbedUrl ?? null);
   const [spotifyCodeInput, setSpotifyCodeInput] = useState('');
 
-  // Scrapbook items inside this memory
-  const [items, setItems] = useState<ScrapbookItem[]>([
-    {
-      id: 'item-florence-1',
-      type: 'flower',
-      imageUrl: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=600&q=80',
-      title: 'Geranium pratense (Meadow Cranesbill)',
-      caption: 'Found near the Duomo',
-      rotation: -1.5,
-      pinPosition: 'top',
-      tapePosition: 'none',
-      x: 60,
-      y: 50,
-    },
-    {
-      id: 'item-florence-2',
-      type: 'photo',
-      imageUrl: 'https://images.unsplash.com/photo-1543429776-2782fc8e1acd?auto=format&fit=crop&w=600&q=80',
-      title: 'Via de\' Tornabuoni',
-      caption: 'Via de\' Tornabuoni',
-      rotation: 2.5,
-      tapePosition: 'top',
-      pinPosition: 'none',
-      x: 160,
-      y: 260,
-    },
-  ]);
+  // Scrapbook items inside this memory (positions are percentages 0-100)
+  const [items, setItems] = useState<ScrapbookItem[]>(() =>
+    initialPage?.items?.length
+      ? initialPage.items
+      : [
+          {
+            id: 'item-florence-1',
+            type: 'flower',
+            imageUrl: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=600&q=80',
+            title: 'Geranium pratense (Meadow Cranesbill)',
+            caption: 'Found near the Duomo',
+            rotation: -1.5,
+            pinPosition: 'top',
+            tapePosition: 'none',
+            x: 8,
+            y: 6,
+          },
+          {
+            id: 'item-florence-2',
+            type: 'photo',
+            imageUrl: 'https://images.unsplash.com/photo-1543429776-2782fc8e1acd?auto=format&fit=crop&w=600&q=80',
+            title: 'Via de\' Tornabuoni',
+            caption: 'Via de\' Tornabuoni',
+            rotation: 2.5,
+            tapePosition: 'top',
+            pinPosition: 'none',
+            x: 24,
+            y: 34,
+          },
+        ]
+  );
 
   // Positioning and Dragging State
   const [textPosition, setTextPosition] = useState({ x: 40, y: 150 });
@@ -118,7 +125,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   // Drag and Drop Handlers
-  const handleItemPointerDown = (e: React.PointerEvent, id: string, currentX: number, currentY: number) => {
+  const handleItemPointerDown = (e: React.PointerEvent, id: string, currentXPct: number, currentYPct: number) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.tagName.toLowerCase() === 'input' || target.tagName.toLowerCase() === 'textarea') {
       return;
@@ -126,11 +133,13 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     if (e.pointerType === 'mouse') {
       e.preventDefault();
     }
+    const canvasW = leftPageRef.current?.clientWidth ?? 596;
+    const canvasH = leftPageRef.current?.clientHeight ?? 750;
     setDraggingId(id);
     setSelectedItemId(id);
     setDragOffset({
-      x: e.clientX - currentX,
-      y: e.clientY - currentY
+      x: e.clientX - (currentXPct / 100) * canvasW,
+      y: e.clientY - (currentYPct / 100) * canvasH
     });
     
     // Bring to front
@@ -166,13 +175,15 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       }
       setTextPosition({ x: newX, y: newY });
     } else {
-      if (leftPageRef.current) {
-        newX = Math.max(-100, Math.min(newX, leftPageRef.current.clientWidth - 150));
-        newY = Math.max(-100, Math.min(newY, leftPageRef.current.clientHeight - 150));
-      }
+      const canvasW = leftPageRef.current?.clientWidth ?? 596;
+      const canvasH = leftPageRef.current?.clientHeight ?? 750;
+      newX = Math.max(0, Math.min(newX, canvasW - 160));
+      newY = Math.max(0, Math.min(newY, canvasH - 160));
+      const itemXPct = Math.round(((newX / canvasW) * 100) * 10) / 10;
+      const itemYPct = Math.round(((newY / canvasH) * 100) * 10) / 10;
       setItems(prev => prev.map(item => {
         if (item.id === draggingId) {
-          return { ...item, x: newX, y: newY };
+          return { ...item, x: itemXPct, y: itemYPct };
         }
         return item;
       }));
@@ -210,8 +221,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       rotation: (Math.random() * 6) - 3,
       tapePosition: 'right',
       pinPosition: 'none',
-      x: 50 + Math.random() * 200,
-      y: 50 + Math.random() * 200,
+      x: 8 + Math.random() * 70,
+      y: 8 + Math.random() * 60,
     };
     setItems((prev) => [...prev, newItem]);
     setActiveToolbarMenu(null);
@@ -240,8 +251,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         rotation: (Math.random() * 6) - 3,
         tapePosition: 'top',
         pinPosition: 'none',
-        x: 100 + Math.random() * 150,
-        y: 100 + Math.random() * 150,
+        x: 8 + Math.random() * 60,
+        y: 8 + Math.random() * 55,
       };
       setItems((prev) => [...prev, newItem]);
       setActiveToolbarMenu(null);
@@ -271,8 +282,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         rotation: (Math.random() * 6) - 3,
         tapePosition: 'top',
         pinPosition: 'none',
-        x: 100 + Math.random() * 150,
-        y: 100 + Math.random() * 150,
+        x: 8 + Math.random() * 60,
+        y: 8 + Math.random() * 55,
       };
       setItems((prev) => [...prev, newItem]);
       setActiveToolbarMenu(null);
@@ -390,7 +401,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
             <X className="w-5 h-5" />
           </button>
           <h1 className="font-serif-display text-2xl sm:text-3xl font-semibold italic text-[#002434] tracking-tight">
-            New Page
+            {!!initialPage ? 'Edit Page' : 'New Page'}
           </h1>
         </div>
 
@@ -641,12 +652,12 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
                   selectedItemId === item.id ? 'z-40' : ''
                 }`}
                 style={{ 
-                  left: item.x ?? 100, 
-                  top: item.y ?? 100,
+                  left: item.x != null ? item.x + '%' : '8%', 
+                  top: item.y != null ? item.y + '%' : '8%',
                   transition: draggingId === item.id ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s',
                   touchAction: 'none'
                 }}
-                onPointerDown={(e) => handleItemPointerDown(e, item.id, item.x ?? 100, item.y ?? 100)}
+                onPointerDown={(e) => handleItemPointerDown(e, item.id, item.x ?? 8, item.y ?? 8)}
               >
                 {/* Floating Action Controls */}
                 <div className={`absolute -top-3 -right-2 z-30 transition-opacity bg-white rounded-full shadow-md border border-stone-200 flex items-center p-1 gap-1 ${
@@ -701,7 +712,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
                   {/* Image or Video */}
                   <div className="relative overflow-hidden bg-[#e8e4dc] border border-stone-200 aspect-[4/3] flex items-center justify-center w-full h-full pointer-events-none">
                     <div className="absolute inset-0 paper-grain z-10 opacity-30 mix-blend-overlay"></div>
-                    {item.type === 'video' && item.videoUrl ? (
+                    {item.type === 'video' && item.videoUrl && !item.videoUrl.startsWith('blob:') ? (
                       <video
                         src={item.videoUrl}
                         autoPlay
@@ -710,6 +721,11 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
                         playsInline
                         className="w-full h-full object-cover select-none filter sepia-[0.35] contrast-[0.95] brightness-[1.05] saturate-[0.8]"
                       />
+                    ) : item.type === 'video' ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
+                        <Video className="w-8 h-8 text-stone-400" />
+                        <p className="text-xs font-sans-ui text-stone-400 mt-1.5">Video pendiente de re-subir</p>
+                      </div>
                     ) : (
                       <img
                         src={item.imageUrl}

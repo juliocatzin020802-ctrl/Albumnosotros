@@ -47,7 +47,7 @@ export const PolaroidCard: React.FC<PolaroidCardProps> = ({
         {/* Grain overlay for vintage photo feel */}
         <div className="absolute inset-0 paper-grain pointer-events-none z-10 opacity-30 mix-blend-overlay"></div>
         
-        {item.type === 'video' && item.videoUrl ? (
+        {item.type === 'video' && item.videoUrl && !item.videoUrl.startsWith('blob:') ? (
           <video
             src={item.videoUrl}
             autoPlay
@@ -56,7 +56,7 @@ export const PolaroidCard: React.FC<PolaroidCardProps> = ({
             playsInline
             className="w-full h-full object-cover select-none filter sepia-[0.35] contrast-[0.95] brightness-[1.05] saturate-[0.8]"
           />
-        ) : item.imageUrl ? (
+        ) : item.imageUrl && (item.type !== 'video' || !item.videoUrl) ? (
           <img
             src={item.imageUrl}
             alt={item.caption || item.title || 'Memory Polaroid'}

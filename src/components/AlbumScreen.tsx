@@ -1,16 +1,18 @@
 import React, { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Camera, Plus, BookOpen, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Camera, Plus, BookOpen, Sparkles, Pencil } from 'lucide-react';
 import { MemoryPage } from '../types';
 import { PolaroidCard } from './PolaroidCard';
 
 interface AlbumScreenProps {
   pages: MemoryPage[];
   onNavigateToEditor: () => void;
+  onEditPage?: (page: MemoryPage) => void;
 }
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({
   pages,
   onNavigateToEditor,
+  onEditPage,
 }) => {
   // currentSpread tracks which pair of pages is visible (0-indexed)
   // Spread 0 = cover (single right page)
@@ -152,7 +154,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({
             <div className="w-[480px] h-[600px] hidden md:block relative">
               {currentSpreadData.left ? (
                 <div className="w-full h-full relative">
-                  {renderPageContent(currentSpreadData.left, 'left', onNavigateToEditor)}
+                  {renderPageContent(currentSpreadData.left, 'left', onNavigateToEditor, onEditPage)}
                   {/* Spine shadow on the right edge of left page */}
                   <div className="absolute top-0 right-0 w-8 h-full bg-gradient-to-l from-black/15 to-transparent pointer-events-none z-10" />
                 </div>
@@ -170,7 +172,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({
             <div className="w-[400px] md:w-[480px] h-[540px] md:h-[600px] relative">
               {currentSpreadData.right ? (
                 <div className="w-full h-full relative">
-                  {renderPageContent(currentSpreadData.right, 'right', onNavigateToEditor)}
+                  {renderPageContent(currentSpreadData.right, 'right', onNavigateToEditor, onEditPage)}
                   {/* Spine shadow on the left edge of right page */}
                   <div className="hidden md:block absolute top-0 left-0 w-8 h-full bg-gradient-to-r from-black/15 to-transparent pointer-events-none z-10" />
                 </div>
@@ -286,6 +288,7 @@ function renderPageContent(
   page: MemoryPage,
   side: 'left' | 'right',
   onNavigateToEditor: () => void,
+  onEditPage?: (page: MemoryPage) => void,
 ) {
   const shadowClass = side === 'left' ? 'page-shadow-left rounded-l-lg' : 'page-shadow-right rounded-r-lg';
 
@@ -302,9 +305,22 @@ function renderPageContent(
     return renderAddChapter(page, side, onNavigateToEditor);
   }
   if (page.type === 'photo_caption') {
-    return renderPhotoCaptionPage(page, side);
+    return renderPhotoCaptionPage(page, side, onEditPage);
   }
-  return renderStoryPage(page, side);
+  return renderStoryPage(page, side, onEditPage);
+}
+
+function renderEditButton(page: MemoryPage, onEditPage?: (page: MemoryPage) => void) {
+  if (!onEditPage) return null;
+  return (
+    <button
+      onClick={() => onEditPage(page)}
+      title="Editar esta página"
+      className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-white/85 backdrop-blur border border-[#c2c7cc]/70 text-stone-500 hover:text-[#002434] hover:bg-white hover:border-[#002434] shadow-md flex items-center justify-center transition-all cursor-pointer"
+    >
+      <Pencil className="w-4 h-4" />
+    </button>
+  );
 }
 
 function renderCover(page: MemoryPage, side: 'left' | 'right') {
@@ -440,16 +456,17 @@ function renderAddChapter(page: MemoryPage, side: 'left' | 'right', onNavigateTo
   );
 }
 
-function renderPhotoCaptionPage(page: MemoryPage, side: 'left' | 'right') {
+function renderPhotoCaptionPage(page: MemoryPage, side: 'left' | 'right', onEditPage?: (page: MemoryPage) => void) {
   const shadowClass = side === 'left' ? 'page-shadow-left' : 'page-shadow-right';
   const roundedClass = side === 'left' ? 'rounded-l-lg' : 'rounded-r-lg';
   return (
     <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl relative overflow-hidden ${shadowClass} ${roundedClass}`}>
+      {renderEditButton(page, onEditPage)}
       {(page.items || []).map((item) => (
         <div
           key={item.id}
           className="absolute"
-          style={{ left: item.x ?? 60, top: item.y ?? 60 }}
+          style={{ left: item.x != null ? item.x + '%' : '8%', top: item.y != null ? item.y + '%' : '8%' }}
         >
           <PolaroidCard item={item} className="max-w-[230px]" />
         </div>
@@ -458,11 +475,12 @@ function renderPhotoCaptionPage(page: MemoryPage, side: 'left' | 'right') {
   );
 }
 
-function renderStoryPage(page: MemoryPage, side: 'left' | 'right') {
+function renderStoryPage(page: MemoryPage, side: 'left' | 'right', onEditPage?: (page: MemoryPage) => void) {
   const shadowClass = side === 'left' ? 'page-shadow-left' : 'page-shadow-right';
   const roundedClass = side === 'left' ? 'rounded-l-lg' : 'rounded-r-lg';
   return (
     <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl botanical-corner-br ${shadowClass} ${roundedClass} p-6 sm:p-8 md:p-10 flex flex-col relative overflow-hidden`}>
+      {renderEditButton(page, onEditPage)}
       {/* Title */}
       {page.title && (
         <div className="flex items-center justify-center text-center flex-shrink-0">

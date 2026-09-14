@@ -4,10 +4,20 @@ import { ScreenType, MemoryPage, ScrapbookItem } from './types';
 import { INITIAL_PAGES } from './data/initialMemories';
 import { AlbumScreen } from './components/AlbumScreen';
 import { EditorScreen } from './components/EditorScreen';
-import { fetchPages, createPage, savePageWithItems } from './lib/memoriesService';
+import { fetchPages, createPage, savePageWithItems, updatePageWithItems } from './lib/memoriesService';
+import type { PageWithItems } from './lib/memoriesService';
 
 const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000000';
 type SyncStatus = 'loading' | 'synced' | 'error';
+
+// Position of items is stored as percentages of the canvas/page (0-100).
+// Legacy rows stored raw pixels on the editor canvas, so convert them once.
+const EDITOR_CANVAS_WIDTH = 596;
+const EDITOR_CANVAS_HEIGHT = 750;
+
+function roundPct(v: number): number {
+  return Math.round(v * 10) / 10;
+}
 
 function toItemInsert(item: ScrapbookItem) {
   return {
@@ -17,11 +27,36 @@ function toItemInsert(item: ScrapbookItem) {
     rotation: item.rotation ?? 0,
     x: item.x ?? 0,
     y: item.y ?? 0,
-    properties: {},
+    properties: { pct: true },
   };
 }
 
-async function persistEditorPageToSupabase(newPage: MemoryPage | null) {
+function rowsToMemoryPages(data: PageWithItems[]): MemoryPage[] {
+  return data.map((p) => ({
+    id: p.id,
+    type: p.page_type === 'photo_caption' ? 'photo_caption' : 'story',
+    title: p.title || undefined,
+    narrative: p.narrative || undefined,
+    fontFamily: (p.font_family as MemoryPage['fontFamily']) || 'serif',
+    spotifyEmbedUrl: p.spotify_url || undefined,
+    items: (p.scrapbook_items || []).map((item) => {
+      const isPct = (item.properties as any)?.pct === true;
+      return {
+        id: item.id,
+        type: item.type as ScrapbookItem['type'],
+        imageUrl: item.url || undefined,
+        videoUrl: item.type === 'video' ? item.url || undefined : undefined,
+        caption: item.caption || undefined,
+        rotation: item.rotation || 0,
+        x: isPct ? item.x : roundPct((item.x || 0) / EDITOR_CANVAS_WIDTH * 100),
+        y: isPct ? item.y : roundPct((item.y || 0) / EDITOR_CANVAS_HEIGHT * 100),
+        ...(item.properties as Record<string, unknown>),
+      };
+    }),
+  }));
+}
+
+async function persistNewPageToSupabase(newPage: MemoryPage | null) {
   if (!newPage) return;
   if (newPage.type === 'photo_caption') {
     const items = (newPage.items || []).map(toItemInsert);
@@ -47,10 +82,28 @@ async function persistEditorPageToSupabase(newPage: MemoryPage | null) {
   });
 }
 
+async function persistEditToSupabase(pageId: string, page: MemoryPage) {
+  const items = (page.items || []).map(toItemInsert);
+  const isCollage = page.type === 'photo_caption';
+  return updatePageWithItems(
+    pageId,
+    {
+      user_id: DEFAULT_USER_ID,
+      page_type: isCollage ? 'photo_caption' : 'story',
+      title: isCollage ? null : page.title || null,
+      narrative: isCollage ? null : page.narrative || null,
+      font_family: page.fontFamily || 'serif',
+      spotify_url: isCollage ? null : page.spotifyEmbedUrl || null,
+    },
+    items,
+  );
+}
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('album');
   const [transitionDirection, setTransitionDirection] = useState<'slide_up' | 'push_back'>('slide_up');
   const [pages, setPages] = useState<MemoryPage[]>(INITIAL_PAGES);
+  const [editingPage, setEditingPage] = useState<MemoryPage | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
@@ -63,25 +116,7 @@ export default function App() {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          const dbPages: MemoryPage[] = data.map((p) => ({
-            id: p.id,
-            type: p.page_type === 'photo_caption' ? 'photo_caption' : 'story',
-            title: p.title || undefined,
-            narrative: p.narrative || undefined,
-            fontFamily: (p.font_family as any) || 'serif',
-            spotifyEmbedUrl: p.spotify_url || undefined,
-            items: (p.scrapbook_items || []).map(item => ({
-              id: item.id,
-              type: item.type as any,
-              imageUrl: item.url || undefined,
-              videoUrl: item.type === 'video' ? item.url || undefined : undefined,
-              caption: item.caption || undefined,
-              rotation: item.rotation || 0,
-              x: item.x || 0,
-              y: item.y || 0,
-              ...(item.properties as Record<string, unknown>)
-            }))
-          }));
+          const dbPages = rowsToMemoryPages(data as unknown as PageWithItems[]);
 
           setPages([
             INITIAL_PAGES[0],
@@ -112,17 +147,44 @@ export default function App() {
   };
 
   // Navigation handlers
-  const handleOpenEditor = () => {
+  const handleOpenEditor = (page?: MemoryPage) => {
+    setEditingPage(page ?? null);
     setTransitionDirection('slide_up');
     setCurrentScreen('editor');
   };
 
   const handleCancelEditor = () => {
+    setEditingPage(null);
     setTransitionDirection('push_back');
     setCurrentScreen('album');
   };
 
   const handleSaveEditor = async (newPage: MemoryPage) => {
+    // Editing an existing page: update the same DB row, keep its id + type.
+    if (editingPage) {
+      const updated: MemoryPage = {
+        ...newPage,
+        id: editingPage.id,
+        type: editingPage.type,
+      };
+
+      setPages((prev) => prev.map((p) => (p.id === editingPage.id ? updated : p)));
+      setEditingPage(null);
+      setTransitionDirection('push_back');
+      setCurrentScreen('album');
+
+      try {
+        const { error } = await persistEditToSupabase(editingPage.id, updated);
+        if (error) throw error;
+        showToast('Cambios guardados y sincronizados.');
+      } catch (err) {
+        console.error('[Album] Sync error:', err);
+        showToast('Cambios guardados. Error al sincronizar.');
+      }
+      return;
+    }
+
+    // New memory: split into a collage page (photos) + a text page.
     const hasItems = newPage.items && newPage.items.length > 0;
 
     const collagePage: MemoryPage | null = hasItems
@@ -160,8 +222,8 @@ export default function App() {
 
     try {
       const [r1, r2] = await Promise.all([
-        persistEditorPageToSupabase(collagePage),
-        persistEditorPageToSupabase(textPage),
+        persistNewPageToSupabase(collagePage),
+        persistNewPageToSupabase(textPage),
       ]);
       const err = r1?.error || r2?.error;
       if (err) throw err;
@@ -249,6 +311,7 @@ export default function App() {
               <AlbumScreen
                 pages={pages}
                 onNavigateToEditor={handleOpenEditor}
+                onEditPage={handleOpenEditor}
               />
             </motion.div>
           ) : (
@@ -264,6 +327,7 @@ export default function App() {
               <EditorScreen
                 onCancel={handleCancelEditor}
                 onSave={(newPage) => void handleSaveEditor(newPage)}
+                initialPage={editingPage}
               />
             </motion.div>
           )}

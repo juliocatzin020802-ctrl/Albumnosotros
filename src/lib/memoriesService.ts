@@ -167,5 +167,40 @@ export async function uploadMedia(file: File | Blob) {
   return { url: data.publicUrl, error: null };
 }
 
+/** Delete the scrapbook items of a page. */
+export async function deletePageItems(pageId: string) {
+  return supabase
+    .from('scrapbook_items')
+    .delete()
+    .eq('page_id', pageId);
+}
+
+/**
+ * Update a page's fields and replace all of its scrapbook items in one go.
+ * Used when editing an existing album page.
+ */
+export async function updatePageWithItems(
+  pageId: string,
+  page: PageUpdate,
+  items: Omit<ItemInsert, 'page_id'>[],
+) {
+  const { error: pageError } = await updatePage(pageId, page);
+  if (pageError) return { data: null, error: pageError };
+
+  const { error: deleteError } = await deletePageItems(pageId);
+  if (deleteError) return { data: null, error: deleteError };
+
+  if (items.length > 0) {
+    const itemsWithPageId: ItemInsert[] = items.map((item) => ({
+      ...item,
+      page_id: pageId,
+    }));
+    const { error: itemsError } = await createItems(itemsWithPageId);
+    if (itemsError) return { data: null, error: itemsError };
+  }
+
+  return fetchPageById(pageId);
+}
+
 // Re-export types for external use
 export type { PageRow, PageInsert, PageUpdate, ItemRow, ItemInsert, ItemUpdate };
