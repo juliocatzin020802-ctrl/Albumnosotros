@@ -4,6 +4,7 @@ import {
   Type, 
   Image as ImageIcon, 
   Video,
+  Music,
   Sparkles, 
   Star, 
   Upload, 
@@ -33,6 +34,10 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   );
   const [isBookmarked, setIsBookmarked] = useState(true);
   const [fontFamily, setFontFamily] = useState<'serif' | 'handwriting' | 'sans'>('serif');
+
+  // Spotify track embedded at the bottom of the narrative page
+  const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState<string | null>(null);
+  const [spotifyCodeInput, setSpotifyCodeInput] = useState('');
 
   // Scrapbook items inside this memory
   const [items, setItems] = useState<ScrapbookItem[]>([
@@ -71,9 +76,12 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const rightPageRef = useRef<HTMLDivElement>(null);
 
   // Active modal/drawer in toolbar
-  const [activeToolbarMenu, setActiveToolbarMenu] = useState<'text' | 'image' | 'sticker' | null>(null);
+  const [activeToolbarMenu, setActiveToolbarMenu] = useState<'text' | 'image' | 'sticker' | 'music' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Selected item highlights its action controls (helps on touch devices)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   // Drag and Drop Handlers
   const handleItemPointerDown = (e: React.PointerEvent, id: string, currentX: number, currentY: number) => {
@@ -85,6 +93,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       e.preventDefault();
     }
     setDraggingId(id);
+    setSelectedItemId(id);
     setDragOffset({
       x: e.clientX - currentX,
       y: e.clientY - currentY
@@ -262,6 +271,44 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+  // Parse Spotify embed code (iframe) or direct track/share URL into an embed URL
+  const parseSpotifyEmbed = (input: string): string | null => {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+
+    // Spotify iframe embed code → extract src
+    const iframeMatch = trimmed.match(/<iframe[^>]*\bsrc=["']([^"']+)["'][^>]*>/i);
+    if (iframeMatch) {
+      const src = iframeMatch[1].split('?')[0];
+      if (src.includes('open.spotify.com/embed/')) return src;
+      if (src.includes('open.spotify.com/')) return src.replace('open.spotify.com/', 'open.spotify.com/embed/');
+    }
+
+    // Direct share URL (track, album, episode, playlist)
+    const linkMatch = trimmed.match(/https?:\/\/open\.spotify\.com\/(track|album|playlist|artist|episode|show)\/[a-zA-Z0-9]+/);
+    if (linkMatch) {
+      return linkMatch[0].replace('open.spotify.com/', 'open.spotify.com/embed/') + '?utm_source=generator';
+    }
+
+    return null;
+  };
+
+  const handleInsertSpotify = () => {
+    const embedUrl = parseSpotifyEmbed(spotifyCodeInput);
+    if (embedUrl) {
+      setSpotifyEmbedUrl(embedUrl);
+      setSpotifyCodeInput('');
+      setActiveToolbarMenu(null);
+    } else {
+      alert('No se pudo reconocer el enlace. Copia el código de inserción de Spotify (Compartir → Incrustar pista) o el enlace de la canción.');
+    }
+  };
+
+  const removeSpotifyEmbed = () => {
+    setSpotifyEmbedUrl(null);
+    setSpotifyCodeInput('');
+  };
+
   // Save handler
   const handleSave = () => {
     const newPage: MemoryPage = {
@@ -272,6 +319,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       items: items,
       pageIndexDisplay: undefined,
       fontFamily: fontFamily,
+      spotifyEmbedUrl: spotifyEmbedUrl || undefined,
     };
     onSave(newPage);
   };
@@ -327,6 +375,17 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
             }`}
           >
             <Sparkles className="w-4 h-4" />
+          </button>
+
+          {/* Spotify Track */}
+          <button
+            onClick={() => setActiveToolbarMenu(activeToolbarMenu === 'music' ? null : 'music')}
+            title="Insertar pista de Spotify"
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+              activeToolbarMenu === 'music' ? 'bg-[#fcf9f2] text-[#002434] shadow-xs' : 'text-[#42474b] hover:text-[#002434]'
+            }`}
+          >
+            <Music className={`w-4 h-4 ${spotifyEmbedUrl ? 'text-[#1db954]' : ''}`} />
           </button>
 
           <div className="w-[1px] h-4 bg-[#c2c7cc] mx-1"></div>
@@ -461,6 +520,57 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         </div>
       )}
 
+      {activeToolbarMenu === 'music' && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-[#fcf9f2] border border-[#c2c7cc] rounded-xl p-4 shadow-xl max-w-md w-full">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-sans-ui font-semibold text-[#002434] uppercase tracking-wider">Insertar pista de Spotify</span>
+            {spotifyEmbedUrl && (
+              <button onClick={removeSpotifyEmbed} className="text-xs font-sans-ui text-red-600 font-medium flex items-center gap-1 hover:underline cursor-pointer">
+                <Trash2 className="w-3.5 h-3.5" /> Quitar pista
+              </button>
+            )}
+          </div>
+
+          {spotifyEmbedUrl ? (
+            <div className="rounded-lg overflow-hidden border border-[#c2c7cc]">
+              <iframe
+                src={spotifyEmbedUrl}
+                width="100%"
+                height="152"
+                frameBorder="0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                className="block w-full"
+                title="Pista de Spotify"
+              ></iframe>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs font-sans-ui text-stone-500 mb-3">
+                En Spotify pulsa <span className="font-medium">Compartir → Incrustar pista</span>, copia el código y pégalo aquí. También puedes pegar el enlace directo de la canción.
+              </p>
+              <textarea
+                value={spotifyCodeInput}
+                onChange={(e) => setSpotifyCodeInput(e.target.value)}
+                rows={4}
+                placeholder='Pega el código (ej: <iframe src="https://open.spotify.com/embed/track/..." ...></iframe>) o el enlace...'
+                className="w-full font-mono text-xs text-stone-700 border border-[#c2c7cc] rounded-lg p-3 outline-none focus:border-[#002434] resize-none"
+              />
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={handleInsertSpotify}
+                  disabled={!spotifyCodeInput.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-md font-sans-ui text-xs font-medium text-white bg-[#1db954] hover:bg-[#17a048] disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                >
+                  <Music className="w-3.5 h-3.5" />
+                  Insertar pista
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Main Two-Page Spread */}
       <main className="flex-grow flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-hidden">
         <div className="w-full max-w-[1200px] h-[750px] flex shadow-[0_20px_60px_rgba(0,0,0,0.15)] rounded-sm border border-[#e5e2db] relative">
@@ -468,13 +578,16 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           {/* Left Page (Items Canvas) */}
           <div 
             ref={leftPageRef}
+            onPointerDown={(e) => { if (e.target === e.currentTarget) setSelectedItemId(null); }}
             className="flex-1 bg-[#fcf9f2] paper-texture paper-grain botanical-corner-tl relative overflow-hidden shadow-[-4px_0_15px_rgba(0,0,0,0.04)_inset]"
           >
             {/* Free-form Draggable Items */}
             {items.map((item) => (
               <div 
                 key={item.id} 
-                className={`absolute group/card ${draggingId === item.id ? 'scale-105 z-50 shadow-2xl cursor-grabbing' : 'cursor-grab'}`}
+                className={`absolute group/card ${draggingId === item.id ? 'scale-105 z-50 shadow-2xl cursor-grabbing' : 'cursor-grab'} ${
+                  selectedItemId === item.id ? 'z-40' : ''
+                }`}
                 style={{ 
                   left: item.x ?? 100, 
                   top: item.y ?? 100,
@@ -484,7 +597,9 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
                 onPointerDown={(e) => handleItemPointerDown(e, item.id, item.x ?? 100, item.y ?? 100)}
               >
                 {/* Floating Action Controls */}
-                <div className="absolute -top-3 -right-2 z-30 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white rounded-full shadow-md border border-stone-200 flex items-center p-1 gap-1">
+                <div className={`absolute -top-3 -right-2 z-30 transition-opacity bg-white rounded-full shadow-md border border-stone-200 flex items-center p-1 gap-1 ${
+                  selectedItemId === item.id ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100 group-focus-within:opacity-100'
+                }`}>
                   <button
                     onClick={() => rotateItem(item.id)}
                     title="Rotar polaroid"
@@ -621,7 +736,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
               </div>
               
               <textarea
-                rows={10}
+                rows={spotifyEmbedUrl ? 6 : 10}
                 value={narrativeText}
                 onChange={(e) => setNarrativeText(e.target.value)}
                 placeholder="Escribe la historia de este recuerdo..."
@@ -633,6 +748,33 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
                 💡 Arrastra el tirador superior para mover el texto.
               </span>
             </div>
+
+            {/* Spotify player at the bottom of the text page */}
+            {spotifyEmbedUrl && (
+              <div className="absolute bottom-20 left-10 right-10 z-10">
+                <div className="flex items-center gap-2 mb-1 text-[11px] font-sans-ui text-stone-500">
+                  <Music className="w-3.5 h-3.5 text-[#1db954]" />
+                  <span>Canción de este recuerdo</span>
+                  <button
+                    onClick={removeSpotifyEmbed}
+                    title="Quitar pista"
+                    className="ml-auto p-1 hover:bg-red-50 text-stone-400 hover:text-red-500 rounded transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <iframe
+                  src={spotifyEmbedUrl}
+                  width="100%"
+                  height="152"
+                  frameBorder="0"
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                  className="block w-full rounded-md shadow-sm"
+                  title="Pista de Spotify"
+                ></iframe>
+              </div>
+            )}
 
             {/* Footer note on the page */}
             <div className="absolute bottom-8 left-10 right-10 pt-4 border-t border-[#e5e2db] flex items-center justify-between text-xs text-stone-400 font-sans-ui z-10 pointer-events-none">

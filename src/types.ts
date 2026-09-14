@@ -26,6 +26,7 @@ export interface MemoryPage {
   narrative?: string;
   handwrittenNote?: string;
   items?: ScrapbookItem[];
+  spotifyEmbedUrl?: string;
   pageIndexDisplay?: number;
   fontFamily?: 'serif' | 'handwriting' | 'sans';
 }

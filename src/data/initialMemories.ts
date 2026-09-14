@@ -5,20 +5,29 @@ export const INITIAL_PAGES: MemoryPage[] = [
   {
     id: 'cover',
     type: 'cover',
-    title: 'NOSTALGIC\nMEMORIES\nALBUM',
-    subtitle: 'A Collection of Moments',
-    dateRange: '1970 - 1985',
+    title: 'Álbum de\nNuestras Citas\ny Momentos Juntos.',
+    subtitle: 'Julio y Linda.',
+    dateRange: '2023 – Hasta la tumba',
   },
-  // Page 2: Inside Cover
+  // Page 2: Inside Cover (Dedication)
   {
     id: 'inside-cover',
     type: 'inside_blank',
+    title: 'Guardemos nuestra historia para siempre.',
+    narrative:
+      'Hola mi amor\n\n' +
+      'Esta es la sorpresa que te había dicho que tenía. Realmente me sorprendió que igual un día dijiste que tenías ' +
+      'ganas de tener un álbum para guardar las cosas, porque ya andaba haciendo esto. Si bien no es lo mismo, quería ' +
+      'que al menos tengamos algo en donde guardar nuestros recuerdos, y que perduren. Traté de hacer algo distinto y ' +
+      'por eso pensé en hacerlo así. Espero que te guste mucho. Aunque no puedo decir que lo hice yo, porque todavía ' +
+      'no tengo las habilidades al 100, traté de dejarlo lo mejor posible. Te amo.\n\n' +
+      'Julio.',
   },
   // Page 3: Add chapter / new memories
   {
     id: 'page-7',
     type: 'add_chapter',
-    handwrittenNote: 'Start a new chapter...',
+    handwrittenNote: 'Guardemos un recuerdo más <3',
   },
   // Page 4: Back Cover
   {

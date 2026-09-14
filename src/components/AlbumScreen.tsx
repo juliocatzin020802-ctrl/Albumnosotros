@@ -296,7 +296,7 @@ function renderPageContent(
     return renderBackCover(side);
   }
   if (page.type === 'inside_blank') {
-    return renderInsideBlank(side);
+    return renderInsideBlank(page, side);
   }
   if (page.type === 'add_chapter') {
     return renderAddChapter(page, side, onNavigateToEditor);
@@ -313,7 +313,7 @@ function renderCover(page: MemoryPage, side: 'left' | 'right') {
 
       <div className="z-10 flex flex-col items-center">
         <h1
-          className="font-serif-display text-3xl sm:text-4xl md:text-5xl font-bold text-[#d4af37] tracking-[0.15em] leading-tight mb-6"
+          className="font-serif-display text-2xl sm:text-3xl md:text-4xl font-bold text-[#d4af37] tracking-[0.1em] leading-snug mb-6"
           style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.85)' }}
         >
           {page.title ? (
@@ -321,25 +321,21 @@ function renderCover(page: MemoryPage, side: 'left' | 'right') {
               <span key={idx} className="block">{line}</span>
             ))
           ) : (
-            <>
-              <span>NOSTALGIC</span>
-              <span>MEMORIES</span>
-              <span>ALBUM</span>
-            </>
+            <span>Nuestro Álbum</span>
           )}
         </h1>
 
         <p
-          className="font-serif-display text-xl sm:text-2xl text-[#d4af37]/90 italic mb-10 tracking-wide"
+          className="font-serif-display text-xl sm:text-2xl text-[#d4af37]/90 italic mb-8 tracking-wide"
           style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}
         >
-          {page.subtitle || 'A Collection of Moments'}
+          {page.subtitle || 'Julio y Linda.'}
         </p>
 
         <div className="w-20 h-[1.5px] bg-[#d4af37]/70 my-4 shadow-sm"></div>
 
         <p className="font-sans-ui text-xs sm:text-sm text-[#d4af37]/70 mt-3 uppercase tracking-[0.25em]">
-          {page.dateRange || '1970 - 1985'}
+          {page.dateRange || '2023 – Hasta la tumba'}
         </p>
 
         <div className="mt-8 flex items-center gap-2 text-[#d4af37]/60 text-xs font-sans-ui">
@@ -360,21 +356,53 @@ function renderBackCover(side: 'left' | 'right') {
         <Sparkles className="w-6 h-6" />
       </div>
       <p className="font-serif-display text-lg text-[#d4af37]/80 italic">Fin del Álbum</p>
-      <p className="font-sans-ui text-xs text-[#d4af37]/50 mt-2">Nostalgic Memories • Lumina Scholastica</p>
+      <p className="font-sans-ui text-xs text-[#d4af37]/50 mt-2">Nuestro Álbum • Hecho con Amor</p>
     </div>
   );
 }
 
-function renderInsideBlank(side: 'left' | 'right') {
+function renderInsideBlank(page: MemoryPage, side: 'left' | 'right') {
   const shadowClass = side === 'left' ? 'page-shadow-left' : 'page-shadow-right';
   const roundedClass = side === 'left' ? 'rounded-l-lg' : 'rounded-r-lg';
+
+  const paragraphs = (page.narrative || '').split(/[\n]{2,}/).map((p) => p.trim());
+  const greeting = paragraphs[0] || '';
+  const signature = paragraphs[paragraphs.length - 1];
+  const isSignature = signature ? /^julio\.?$/i.test(signature) : false;
+  const body = paragraphs.slice(1, isSignature ? paragraphs.length - 1 : paragraphs.length);
+
   return (
-    <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl botanical-corner-br ${shadowClass} ${roundedClass} p-8 flex flex-col justify-between`}>
-      <div className="border border-stone-300/40 h-full w-full rounded p-6 flex flex-col items-center justify-center text-center">
-        <p className="font-serif-display text-stone-500 italic text-lg mb-2">Ex Libris</p>
-        <div className="w-16 h-[1px] bg-stone-300 mb-4"></div>
-        <div className="botanical-divider mb-4">✿</div>
-        <p className="font-handwriting text-2xl text-stone-700">Memorias y Recuerdos Atesorados</p>
+    <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl botanical-corner-br ${shadowClass} ${roundedClass} p-6 sm:p-8 md:p-9 relative`}>
+      <div className="h-full w-full flex flex-col items-center justify-between text-center">
+        {/* Heading */}
+        <p className="font-serif-display text-stone-500 italic text-xl md:text-2xl px-2">
+          {page.title || 'Guardemos nuestra historia para siempre.'}
+        </p>
+        <div className="w-16 h-[1px] bg-stone-400/60 -mt-2"></div>
+
+        {/* Greeting */}
+        <p className="font-handwriting text-2xl md:text-3xl text-stone-700 -mt-2">
+          {greeting}
+        </p>
+
+        {/* Dedication body */}
+        <div className="w-full flex flex-col items-center gap-4 px-1">
+          {body.map((paragraph, idx) => (
+            <p key={idx} className="font-handwriting text-base md:text-lg text-stone-700 leading-snug max-w-[440px] text-center">
+              {paragraph}
+            </p>
+          ))}
+        </div>
+
+        {/* Signature */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="botanical-divider">✿</div>
+          {isSignature && (
+            <p className="font-handwriting text-2xl md:text-3xl text-stone-700 italic">
+              — {signature}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -389,8 +417,8 @@ function renderAddChapter(page: MemoryPage, side: 'left' | 'right', onNavigateTo
         <Sparkles className="w-8 h-8 text-[#735c00]" />
       </div>
 
-      <p className="font-handwriting text-3xl md:text-4xl text-stone-700 italic mb-6">
-        {page.handwrittenNote || 'Start a new chapter...'}
+      <p className="font-handwriting text-2xl md:text-3xl text-stone-700 italic mb-6">
+        {page.handwrittenNote || 'Guardemos un recuerdo más <3'}
       </p>
 
       <p className="font-sans-ui text-sm text-stone-600 max-w-xs mb-8">
@@ -439,6 +467,22 @@ function renderStoryPage(page: MemoryPage, side: 'left' | 'right') {
             'font-handwriting text-xl sm:text-2xl'
           } text-stone-800 leading-relaxed max-w-sm mt-3 px-2`}>
             <p>{page.narrative}</p>
+          </div>
+        )}
+
+        {/* Spotify player */}
+        {page.spotifyEmbedUrl && (
+          <div className="mt-5 w-full flex justify-center px-1">
+            <iframe
+              src={page.spotifyEmbedUrl}
+              width="100%"
+              height="152"
+              frameBorder="0"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy"
+              className="max-w-[420px]"
+              title="Canción del recuerdo"
+            ></iframe>
           </div>
         )}
 
