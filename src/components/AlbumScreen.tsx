@@ -462,20 +462,23 @@ function renderStoryPage(page: MemoryPage, side: 'left' | 'right') {
   const shadowClass = side === 'left' ? 'page-shadow-left' : 'page-shadow-right';
   const roundedClass = side === 'left' ? 'rounded-l-lg' : 'rounded-r-lg';
   return (
-    <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl botanical-corner-br ${shadowClass} ${roundedClass} p-6 sm:p-8 md:p-10 flex flex-col justify-between relative overflow-hidden`}>
-      <div className="flex flex-col items-center text-center flex-grow justify-center">
-        {/* Title */}
-        {page.title && (
-          <h2 className="font-handwriting text-3xl sm:text-4xl text-stone-800 mb-4 tracking-wide">
+    <div className={`w-full h-full paper-texture paper-grain botanical-corner-tl botanical-corner-br ${shadowClass} ${roundedClass} p-6 sm:p-8 md:p-10 flex flex-col relative overflow-hidden`}>
+      {/* Title */}
+      {page.title && (
+        <div className="flex items-center justify-center text-center flex-shrink-0">
+          <h2 className="font-handwriting text-2xl sm:text-3xl text-stone-800 tracking-wide">
             {page.title}
           </h2>
-        )}
+        </div>
+      )}
 
+      {/* Scrollable content: photos, text & song */}
+      <div className="flex-grow min-h-0 overflow-y-auto overscroll-contain mt-3 pr-1 [scrollbar-width:thin] flex flex-col items-center text-center">
         {/* Polaroid items */}
         {page.items && page.items.length > 0 && (
           <div className="my-3 flex flex-col items-center">
             {page.items.map((item) => (
-              <PolaroidCard key={item.id} item={item} />
+              <PolaroidCard key={item.id} item={item} className="max-w-[240px]" />
             ))}
           </div>
         )}
@@ -483,17 +486,17 @@ function renderStoryPage(page: MemoryPage, side: 'left' | 'right') {
         {/* Narrative */}
         {page.narrative && (
           <div className={`${
-            page.fontFamily === 'serif' ? 'font-serif text-xl sm:text-2xl' :
-            page.fontFamily === 'sans' ? 'font-sans-ui text-base' :
-            'font-handwriting text-xl sm:text-2xl'
-          } text-stone-800 leading-relaxed max-w-sm mt-3 px-2`}>
+            page.fontFamily === 'serif' ? 'font-serif text-base md:text-lg' :
+            page.fontFamily === 'sans' ? 'font-sans-ui text-sm md:text-base' :
+            'font-handwriting text-lg md:text-xl'
+          } text-stone-800 leading-snug max-w-sm mt-3 px-2`}>
             <p>{page.narrative}</p>
           </div>
         )}
 
         {/* Spotify player */}
         {page.spotifyEmbedUrl && (
-          <div className="mt-5 w-full flex justify-center px-1">
+          <div className="mt-5 w-full flex justify-center px-1 mb-1">
             <iframe
               src={page.spotifyEmbedUrl}
               width="100%"
@@ -501,7 +504,7 @@ function renderStoryPage(page: MemoryPage, side: 'left' | 'right') {
               frameBorder="0"
               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
               loading="lazy"
-              className="max-w-[420px]"
+              className="max-w-[420px] flex-shrink-0"
               title="Canción del recuerdo"
             ></iframe>
           </div>
@@ -517,7 +520,7 @@ function renderStoryPage(page: MemoryPage, side: 'left' | 'right') {
 
       {/* Page number */}
       {page.pageIndexDisplay !== undefined && (
-        <div className="w-full text-center font-sans-ui text-xs text-stone-400 mt-2 select-none">
+        <div className="w-full text-center font-sans-ui text-xs text-stone-400 mt-2 select-none flex-shrink-0">
           {page.pageIndexDisplay}
         </div>
       )}

@@ -5,16 +5,37 @@ import { INITIAL_PAGES } from './data/initialMemories';
 import { AlbumScreen } from './components/AlbumScreen';
 import { EditorScreen } from './components/EditorScreen';
 
+const STORAGE_KEY = 'album-de-recuerdos:pages';
+
+function loadSavedPages(): MemoryPage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as MemoryPage[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.warn('[Album] No se pudieron restaurar las páginas guardadas:', err);
+  }
+  return INITIAL_PAGES;
+}
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('album');
   const [transitionDirection, setTransitionDirection] = useState<'slide_up' | 'push_back'>('slide_up');
-  const [pages, setPages] = useState<MemoryPage[]>(INITIAL_PAGES);
+  const [pages, setPages] = useState<MemoryPage[]>(() => loadSavedPages());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load pages from Supabase on mount
+  // Load pages from localStorage / Supabase on mount
   useEffect(() => {
     async function loadPages() {
+      // If we already restored from localStorage, skip the remote fetch
+      if (localStorage.getItem(STORAGE_KEY)) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
         // We use a default user ID for the prototype since auth isn't implemented yet
         const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000000';
@@ -65,6 +86,15 @@ export default function App() {
 
     loadPages();
   }, []);
+
+  // Persist pages locally so saved memories survive page reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
+    } catch (err) {
+      console.warn('[Album] No se pudo guardar localmente (¿almacenamiento lleno?):', err);
+    }
+  }, [pages]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
