@@ -118,3 +118,36 @@ CREATE POLICY "Shared album - delete items"
 -- ------------------------------------------------------------------
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pages TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE scrapbook_items TO anon, authenticated;
+
+-- =============================================================
+-- Storage: bucket for photos & videos
+-- =============================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('album-media', 'album-media', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Make the storage policies idempotent
+DROP POLICY IF EXISTS "Public media read" ON storage.objects;
+DROP POLICY IF EXISTS "Public media insert" ON storage.objects;
+DROP POLICY IF EXISTS "Public media update" ON storage.objects;
+DROP POLICY IF EXISTS "Public media delete" ON storage.objects;
+
+-- Anyone can view the media of the shared album
+CREATE POLICY "Public media read"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'album-media');
+
+-- Anyone can upload photos/videos to the shared album
+CREATE POLICY "Public media insert"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'album-media');
+
+-- Anyone can overwrite existing media
+CREATE POLICY "Public media update"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'album-media');
+
+-- Anyone can remove media
+CREATE POLICY "Public media delete"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'album-media');

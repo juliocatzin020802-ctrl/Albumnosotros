@@ -17,9 +17,10 @@ import {
 } from 'lucide-react';
 import { MemoryPage, ScrapbookItem } from '../types';
 import { PRESET_STICKERS } from '../data/initialMemories';
+import { uploadMedia } from '../lib/memoriesService';
 
-// Downscale an image so it fits in localStorage / the database comfortably.
-function downscaleImage(file: File, maxDim = 1200, quality = 0.82): Promise<string> {
+// Downscale an image so it uploads and stores comfortably.
+function downscaleImage(file: File, maxDim = 1200, quality = 0.82): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -33,7 +34,10 @@ function downscaleImage(file: File, maxDim = 1200, quality = 0.82): Promise<stri
         canvas.height = h;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('No se pudo procesar la imagen'));
+        }, 'image/jpeg', quality);
       } catch (err) {
         reject(err);
       } finally {
@@ -213,37 +217,52 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     setActiveToolbarMenu(null);
   };
 
-  // Upload user image (downscaled for storage)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload user image: downscale, store in the cloud, then place it on the page
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    downscaleImage(file)
-      .then((url) => {
-        const newItem: ScrapbookItem = {
-          id: `item-${Date.now()}`,
-          type: 'photo',
-          imageUrl: url,
-          caption: file.name.replace(/\.[^/.]+$/, ''),
-          rotation: (Math.random() * 6) - 3,
-          tapePosition: 'top',
-          pinPosition: 'none',
-          x: 100 + Math.random() * 150,
-          y: 100 + Math.random() * 150,
-        };
-        setItems((prev) => [...prev, newItem]);
-        setActiveToolbarMenu(null);
-      })
-      .catch((err) => {
-        console.error('No se pudo procesar la imagen:', err);
-      });
+    try {
+      const blob = await downscaleImage(file);
+      const jpeg = new File([blob], `${file.name.replace(/\.[^/.]+$/, '')}.jpg`, { type: 'image/jpeg' });
+      const { url, error } = await uploadMedia(jpeg);
+      if (error || !url) {
+        console.error('No se pudo subir la imagen a la nube:', error);
+        alert('No se pudo subir la imagen a la nube. Revisa tu conexión e inténtalo otra vez.');
+        return;
+      }
+
+      const newItem: ScrapbookItem = {
+        id: `item-${Date.now()}`,
+        type: 'photo',
+        imageUrl: url,
+        caption: file.name.replace(/\.[^/.]+$/, ''),
+        rotation: (Math.random() * 6) - 3,
+        tapePosition: 'top',
+        pinPosition: 'none',
+        x: 100 + Math.random() * 150,
+        y: 100 + Math.random() * 150,
+      };
+      setItems((prev) => [...prev, newItem]);
+      setActiveToolbarMenu(null);
+    } catch (err) {
+      console.error('No se pudo procesar la imagen:', err);
+    }
   };
 
-  // Upload user video
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload user video to the cloud so it persists on any device
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
+    if (!file) return;
+
+    try {
+      const { url, error } = await uploadMedia(file);
+      if (error || !url) {
+        console.error('No se pudo subir el video a la nube:', error);
+        alert('No se pudo subir el video a la nube. Revisa tu conexión e inténtalo otra vez.');
+        return;
+      }
+
       const newItem: ScrapbookItem = {
         id: `item-${Date.now()}`,
         type: 'video',
@@ -257,6 +276,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       };
       setItems((prev) => [...prev, newItem]);
       setActiveToolbarMenu(null);
+    } catch (err) {
+      console.error('No se pudo procesar el video:', err);
     }
   };
 

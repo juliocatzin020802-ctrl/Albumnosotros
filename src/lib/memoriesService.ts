@@ -145,5 +145,27 @@ export async function savePageWithItems(
   return fetchPageById(createdPage.id);
 }
 
+// ---------------------------------------------------------------------------
+// Media (photos & videos) stored in Supabase Storage
+// ---------------------------------------------------------------------------
+
+/** Upload a photo/video file to the public 'album-media' bucket. */
+export async function uploadMedia(file: File | Blob) {
+  const name = file instanceof File ? file.name : `recuerdo-${Date.now()}`;
+  const extension = name.split('.').pop()?.toLowerCase() || 'bin';
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from('album-media')
+    .upload(path, file, { cacheControl: '3600', upsert: false });
+
+  if (error) {
+    return { url: null, error };
+  }
+
+  const { data } = supabase.storage.from('album-media').getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
+}
+
 // Re-export types for external use
 export type { PageRow, PageInsert, PageUpdate, ItemRow, ItemInsert, ItemUpdate };
